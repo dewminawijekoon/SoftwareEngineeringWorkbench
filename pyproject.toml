@@ -1,7 +1,14 @@
 [project]
 name = "softwareengineeringworkbench"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-powered Solution Architecture Generator using Gemini 2.5 Flash"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "google-generativeai>=0.8.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.7.0",
+    "pydantic>=2.9.0",
+    "pypdf>=5.0.0",
+    "python-docx>=1.1.0",
+]
