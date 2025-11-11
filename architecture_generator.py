@@ -4,6 +4,7 @@ from typing import List, Optional
 import json
 from rich.console import Console
 from rich.markdown import Markdown
+import re
 
 from config import GEMINI_API_KEY, GEMINI_MODEL, GENERATION_CONFIG, SAFETY_SETTINGS
 from models import UserRequirement, SupportingDocument, SolutionArchitecture
@@ -126,7 +127,7 @@ class ArchitectureGenerator:
                 prompt_parts.extend([
                     f"### {doc.filename} ({doc.document_type})",
                     f"```",
-                    doc.content[:2000] + ("..." if len(doc.content) > 2000 else ""),  # Limit content
+                    doc.content[:2000] + ("..." if len(doc.content) > 2000 else ""),
                     f"```",
                     ""
                 ])
@@ -153,71 +154,173 @@ class ArchitectureGenerator:
             "   - Brief overview of the solution",
             "   - Key architectural decisions",
             "",
-            "2. **Architecture Pattern & Reasoning**",
+            "2. **Architecture Diagrams (Mermaid)**",
+            "   - Create at least 2 diagrams: System Architecture and Deployment Architecture",
+            "   - ONLY use these valid Mermaid diagram types:",
+            "     * 'graph TD' (top-down flowchart)",
+            "     * 'graph LR' (left-right flowchart)",
+            "     * 'flowchart TD' or 'flowchart LR'",
+            "     * 'sequenceDiagram' (for interaction flows)",
+            "   - DO NOT use: C4Context, C4Container, C4_Context, C4_Container, or any C4 syntax",
+            "   - Use standard Mermaid node shapes:",
+            "     * [Rectangle] for components",
+            "     * [(Database)] for databases",
+            "     * {{Diamond}} for decision points",
+            "     * ([Rounded]) for start/end",
+            "   - Use arrows for relationships:",
+            "     * --> (solid arrow)",
+            "     * -.-> (dotted arrow for monitoring/logging)",
+            "     * -->|label| (labeled arrow)",
+            "   - For subgraphs with spaces in names, use this syntax:",
+            "     * subgraph identifier[\"Display Name With Spaces\"]",
+            "     * Example: subgraph BackendServices[\"Backend Services\"]",
+            "   - **CRITICAL NODE NAMING RULES:**",
+            "     * Node IDs must be simple (e.g., CDN, API, DB1)",
+            "     * Node labels should avoid parentheses () inside subgraphs",
+            "     * Use hyphens or 'via' instead: 'CDN - CloudFront' not 'CDN (CloudFront)'",
+            "     * Keep labels simple and descriptive",
+            "",
+            "3. **Architecture Pattern & Reasoning**",
             "   - Chosen pattern (Microservices, Monolithic, Event-Driven, etc.)",
             "   - Detailed reasoning for this choice",
             "   - Alternative patterns considered and why they were rejected",
             "",
-            "3. **System Components**",
+            "4. **System Components**",
             "   For each major component:",
             "   - Component name and purpose",
             "   - Suggested technology/framework",
             "   - Detailed reasoning for technology choice",
             "   - Interactions with other components",
             "",
-            "4. **Technology Stack**",
+            "5. **Technology Stack**",
             "   - Frontend technologies with reasoning",
             "   - Backend technologies with reasoning",
             "   - Database choices with reasoning",
             "   - Infrastructure and DevOps tools",
             "",
-            "5. **Data Architecture**",
+            "6. **Data Architecture**",
             "   - Data storage strategy",
             "   - Data flow between components",
             "   - Caching strategy",
             "",
-            "6. **Non-Functional Requirements**",
+            "7. **Non-Functional Requirements**",
             "   - Scalability approach and reasoning",
             "   - Security measures and reasoning",
             "   - Performance optimization strategies",
             "   - Reliability and fault tolerance",
             "",
-            "7. **Deployment Strategy**",
+            "8. **Deployment Strategy**",
             "   - Deployment architecture",
             "   - CI/CD pipeline approach",
             "   - Environment strategy",
             "",
-            "8. **Integration Points**",
+            "9. **Integration Points**",
             "   - External system integrations",
             "   - API design approach",
             "   - Authentication/Authorization strategy",
             "",
-            "9. **Trade-offs and Decisions**",
-            "   - Key trade-offs made",
-            "   - Risks and mitigation strategies",
-            "   - Future scalability considerations",
+            "10. **Trade-offs and Decisions**",
+            "    - Key trade-offs made",
+            "    - Risks and mitigation strategies",
+            "    - Future scalability considerations",
             "",
-            "10. **Architecture Diagram Description**",
-            "    - Textual description of how components connect",
-            "    - Data flow description",
+            "## CRITICAL Output Format Requirements:",
             "",
-            "## Output Format:",
-            "Provide the architecture in well-structured Markdown format with clear headings, "
-            "bullet points, and detailed reasoning for EVERY major decision. Be specific about "
-            "technologies and explain WHY each choice was made based on the requirements."
+            "**For Mermaid Diagrams - VERY IMPORTANT:**",
+            "1. Start each diagram with a markdown heading: ### System Architecture Diagram",
+            "2. On the next line, start the code block with: ```mermaid",
+            "3. On the next line, specify ONLY one of these diagram types:",
+            "   - graph TD",
+            "   - graph LR", 
+            "   - flowchart TD",
+            "   - flowchart LR",
+            "   - sequenceDiagram",
+            "4. Then add your diagram code",
+            "5. End with three backticks: ```",
+            "6. NEVER use C4Context, C4Container, C4_Context, C4_Container, or any C4 syntax",
+            "7. For subgraphs, use: subgraph identifier[\"Display Name\"]",
+            "8. **AVOID parentheses in node labels, especially inside subgraphs**",
+            "",
+            "**Valid Diagram Example Structure:**",
+            "### System Architecture Diagram",
+            "```mermaid",
+            "graph TD",
+            "    User[User]",
+            "    Browser[Web Browser]",
+            "    CDN[CDN - CloudFront]",
+            "    LB[Load Balancer]",
+            "    ",
+            "    subgraph BackendServices[\"Backend Services\"]",
+            "        API[API Gateway]",
+            "        Auth[Auth Service]",
+            "        UserSvc[User Service]",
+            "    end",
+            "    ",
+            "    subgraph DataLayer[\"Data Layer\"]",
+            "        DB[(PostgreSQL Database)]",
+            "        Cache[(Redis Cache)]",
+            "    end",
+            "    ",
+            "    User --> Browser",
+            "    Browser -->|HTTPS| CDN",
+            "    Browser -->|API Calls| LB",
+            "    LB --> API",
+            "    API --> Auth",
+            "    API --> UserSvc",
+            "    Auth --> DB",
+            "    UserSvc --> DB",
+            "    API --> Cache",
+            "```",
+            "",
+            "**General Format:**",
+            "- Use clear markdown headings (##, ###)",
+            "- Use bullet points and numbered lists appropriately",
+            "- Provide detailed reasoning for EVERY major decision",
+            "- Be specific about technologies and explain WHY each choice was made"
         ])
         
         return "\n".join(prompt_parts)
     
     def export_architecture(self, architecture_text: str, output_file: str):
         """
-        Export the generated architecture to a file.
+        Export the generated architecture to a file with Mermaid diagrams.
         
         Args:
             architecture_text: Generated architecture text
             output_file: Output file path
         """
+        # Enhance the markdown with Mermaid instructions
+        enhanced_text = self._add_mermaid_instructions(architecture_text)
+        
         with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(architecture_text)
+            f.write(enhanced_text)
         
         console.print(f"[green]✓[/green] Architecture exported to: {output_file}")
+        console.print("\n[cyan]📊 Viewing Mermaid Diagrams:[/cyan]")
+        console.print("  • GitHub/GitLab: Diagrams render automatically")
+        console.print("  • VS Code: Install 'Markdown Preview Mermaid Support' extension")
+        console.print("  • Online: https://mermaid.live (paste your Mermaid code)")
+        console.print("  • Export images: Use Mermaid CLI or online tools")
+    
+    def _add_mermaid_instructions(self, architecture_text: str) -> str:
+        """
+        Add instructions for viewing Mermaid diagrams at the beginning of the file.
+        
+        Args:
+            architecture_text: Original architecture text
+            
+        Returns:
+            Enhanced text with viewing instructions
+        """
+        instructions = """# Solution Architecture Document
+
+> **📊 Viewing Diagrams**: This document contains Mermaid diagrams that render in:
+> - GitHub, GitLab, Bitbucket (automatic)
+> - VS Code (install "Markdown Preview Mermaid Support" extension)
+> - Online viewers: [mermaid.live](https://mermaid.live)
+> - Export to PNG/SVG: Use [Mermaid CLI](https://github.com/mermaid-js/mermaid-cli)
+
+---
+
+"""
+        return instructions + architecture_text
