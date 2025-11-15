@@ -50,9 +50,27 @@ pip install -e .
 
 ## Usage
 
-### Interactive CLI Mode
+### Option 1: Streamlit Web Interface (Recommended)
 
-Run the interactive CLI:
+Launch the interactive web application:
+```bash
+uv run streamlit run streamlit_app.py
+```
+
+Or if you've activated the virtual environment:
+```bash
+streamlit run streamlit_app.py
+```
+
+The web app will open at `http://localhost:8501` with the following features:
+- **Chat Tab** - Interactive requirements gathering with Ada (AI assistant)
+- **Summary Tab** - Review chat history and extract requirements
+- **Documents Tab** - Upload supporting documents (PDF, DOCX, TXT, MD)
+- **Architecture Tab** - Generate and download solution architecture
+
+### Option 2: Interactive CLI Mode
+
+Run the command-line interface:
 ```bash
 uv run python main.py
 ```
@@ -69,6 +87,7 @@ The CLI offers the following options:
 4. **Review Requirements** - View all collected information
 5. **Generate Architecture** - Create the solution architecture
 6. **Exit** - Close the application
+
 
 ### Programmatic Usage
 
@@ -133,13 +152,16 @@ print(response)
 
 ```
 SoftwareEngineeringWorkbench/
-├── main.py                    # Entry point
+├── streamlit_app.py           # Web interface (Streamlit)
+├── main.py                    # CLI entry point
 ├── cli.py                     # Interactive CLI interface
+├── automated_architecture.py  # Batch/automated processing
 ├── architecture_generator.py  # Core architecture generation logic
 ├── document_processor.py      # Document processing utilities
 ├── models.py                  # Pydantic data models
 ├── config.py                  # Configuration settings
 ├── .env.example              # Environment variables template
+├── .streamlit/config.toml    # Streamlit theme configuration
 ├── pyproject.toml            # Project dependencies
 └── README.md                 # This file
 ```
@@ -173,6 +195,7 @@ The generated architecture includes:
 - Gemini API key
 - Dependencies (auto-installed):
   - google-generativeai
+  - streamlit
   - python-dotenv
   - rich
   - pydantic
