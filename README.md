@@ -210,10 +210,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 MIT License - See LICENSE file for details
 
-## Author
-
-Created by [dewminawijekoon](https://github.com/dewminawijekoon)
-
 ## Acknowledgments
 
-Powered by [Google Gemini 2.0 Flash](https://ai.google.dev/)
+Powered by [Google Gemini 2.5 Flash](https://ai.google.dev/)
