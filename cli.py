@@ -58,40 +58,80 @@ class ArchitectureCLI:
             elif choice == "6":
                 console.print("[yellow]Goodbye![/yellow]")
                 break
-    
     def _chat_mode(self):
-        """Interactive chat mode for requirements gathering."""
-        console.print("\n[bold cyan]Chat Mode - Requirements Gathering[/bold cyan]")
-        console.print("[dim]Type 'done' to finish, 'back' to return to menu[/dim]\n")
-        
+        """Enhanced interactive chat mode for gathering user requirements intelligently."""
+        console.print("\n[bold cyan]🤖 Chat Mode - Intelligent Requirements Gathering[/bold cyan]")
+        console.print("[dim]Type 'done' to finish or 'back' to return to the main menu.[/dim]\n")
+
         self.generator.start_chat_session()
-        
-        # Initial prompt
+        self.chat_history.clear()
+
+        # Opening instruction prompt to AI
         initial_prompt = (
-            "I need to gather software requirements for a new project. "
-            "Please ask me clarifying questions to understand the project needs, "
-            "technical requirements, and constraints."
+            "You are an expert software architect assistant. "
+            "Start a conversation to gather complete software requirements from the user. "
+            "Ask one question at a time to explore system purpose, key features, users, constraints, "
+            "and technologies. Be concise and professional."
         )
-        
-        response = self.generator.chat(initial_prompt)
-        console.print(f"\n[bold blue]AI:[/bold blue] {response}\n")
-        self.chat_history.append(f"AI: {response}")
-        
+
+        ai_response = self.generator.chat(initial_prompt)
+        console.print(f"[bold blue]AI:[/bold blue] {ai_response}\n")
+        self.chat_history.append(f"AI: {ai_response}")
+
+        conversation_round = 0
+        summarized_points = []
+
         while True:
-            user_input = Prompt.ask("[bold green]You[/bold green]")
-            
-            if user_input.lower() == 'done':
-                # Extract requirements from chat
+            user_input = Prompt.ask("[bold green]You[/bold green]").strip()
+
+            if user_input.lower() == "done":
+                # Summarize conversation before extraction
+                if self.chat_history:
+                    console.print("\n[bold yellow]Summarizing conversation before extraction...[/bold yellow]")
+                    summary_prompt = (
+                        "Summarize the key software requirements or ideas mentioned in this conversation:\n"
+                        + "\n".join(self.chat_history)
+                    )
+                    summary = self.generator.chat(summary_prompt)
+                    console.print(f"\n[bold blue]AI Summary:[/bold blue]\n{summary}\n")
+                    summarized_points.append(summary)
+
                 self._extract_requirements_from_chat()
                 break
-            elif user_input.lower() == 'back':
+
+            elif user_input.lower() == "back":
+                console.print("[yellow]Returning to main menu...[/yellow]")
                 break
-            
+
+            # Avoid empty input
+            if not user_input:
+                console.print("[dim]Please enter a response or type 'done' to finish.[/dim]")
+                continue
+
+            # Append and send to AI
             self.chat_history.append(f"User: {user_input}")
-            response = self.generator.chat(user_input)
-            self.chat_history.append(f"AI: {response}")
-            
-            console.print(f"\n[bold blue]AI:[/bold blue] {response}\n")
+            ai_response = self.generator.chat(user_input)
+            self.chat_history.append(f"AI: {ai_response}")
+
+            console.print(f"\n[bold blue]AI:[/bold blue] {ai_response}\n")
+
+            conversation_round += 1
+
+            # Optional: auto-summarize after every 5 exchanges to keep context manageable
+            if conversation_round % 5 == 0:
+                console.print("[dim]Auto-summarizing recent discussion...[/dim]")
+                partial_summary_prompt = (
+                    "Summarize the following part of the chat in concise bullet points:\n"
+                    + "\n".join(self.chat_history[-10:])
+                )
+                partial_summary = self.generator.chat(partial_summary_prompt)
+                summarized_points.append(partial_summary)
+                console.print(f"[italic cyan]{partial_summary}[/italic cyan]\n")
+
+        # Merge summaries for better requirement extraction
+        if summarized_points:
+            self.chat_history.append("AI Summary Blocks: " + " ".join(summarized_points))
+    
     
     def _extract_requirements_from_chat(self):
         """Extract structured requirements from chat history."""
