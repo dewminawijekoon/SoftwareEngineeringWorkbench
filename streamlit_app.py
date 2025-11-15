@@ -127,14 +127,6 @@ with st.sidebar:
     # Copyright
     st.caption("© 2025 84H. All rights reserved.")
 
-# Main content - Display selected tab content
-if st.session_state.chat_completed and st.session_state.active_tab == 0:
-    st.session_state.active_tab = 1  # Auto-move to Summary after chat
-    
-if len(st.session_state.requirements) > 0 and st.session_state.active_tab == 1:
-    # Allow staying on summary or moving forward
-    pass
-
 # Display content based on active tab
 active_tab = st.session_state.active_tab
 
@@ -517,12 +509,25 @@ elif active_tab == 3:
                 try:
                     import streamlit.components.v1 as components
                     mermaid_html = f"""
-                    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-                    <script>mermaid.initialize({{startOnLoad:true}});</script>
-                    <div class="mermaid">
-                    {part}
-                    </div>
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+                        <script>
+                            mermaid.initialize({{
+                                startOnLoad: true,
+                                theme: 'default',
+                                flowchart: {{ useMaxWidth: true, htmlLabels: true }}
+                            }});
+                        </script>
+                    </head>
+                    <body style="margin: 0; padding: 20px; background-color: white;">
+                        <div class="mermaid" style="text-align: center;">
+                        {part}
+                        </div>
+                    </body>
+                    </html>
                     """
-                    components.html(mermaid_html, height=400)
+                    components.html(mermaid_html, height=800, scrolling=True)
                 except:
                     st.info("Mermaid diagram code shown above. Copy to visualize in a Mermaid renderer.")
