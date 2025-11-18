@@ -1,13 +1,10 @@
 """Solution Architecture Generator using Gemini AI."""
 import google.generativeai as genai
 from typing import List, Optional
-import json
 from rich.console import Console
-from rich.markdown import Markdown
-import re
 
 from config import GEMINI_API_KEY, GEMINI_MODEL, GENERATION_CONFIG, SAFETY_SETTINGS
-from models import UserRequirement, SupportingDocument, SolutionArchitecture
+from models import UserRequirement, SupportingDocument
 
 console = Console()
 
@@ -15,92 +12,56 @@ console = Console()
 class ArchitectureGenerator:
     """Generate solution architecture using Gemini 2.5 Flash API."""
     
+    SYSTEM_INSTRUCTION = """You are Ada, an expert software architect and requirements analyst. 
+Your role is to:
+1. Ask clarifying questions about user requirements
+2. Understand technical and business constraints
+3. Identify key stakeholders and use cases
+4. Explore non-functional requirements (scalability, security, performance)
+
+When introducing yourself, greet the user and say something like: "Hello! I'm Ada, your dedicated AI architect assistant."
+
+CRITICAL RULE: Ask ONLY ONE question at a time. 
+Wait for the user's answer before asking the next question.
+Keep questions simple and focused on one topic.
+Never ask multiple questions in a single response."""
+
     def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize the Architecture Generator.
-        
-        Args:
-            api_key: Gemini API key (optional, defaults to config)
-        """
+        """Initialize the Architecture Generator."""
         self.api_key = api_key or GEMINI_API_KEY
-        
         if not self.api_key:
             raise ValueError("Gemini API key not found. Set GEMINI_API_KEY in .env file")
-        
-        # Configure Gemini
+
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(
             model_name=GEMINI_MODEL,
             generation_config=GENERATION_CONFIG,
-            safety_settings=SAFETY_SETTINGS
+            safety_settings=SAFETY_SETTINGS,
+            system_instruction=self.SYSTEM_INSTRUCTION
         )
-        
-        # Initialize chat session
         self.chat_session = None
-    
+
     def start_chat_session(self):
         """Start a new chat session for interactive requirements gathering."""
-        system_instruction = """You are Ada Chen, a Senior Solution Architect and Requirements Analyst with over 15 years of experience in enterprise software design. 
-        
-        Your role is to:
-        1. Ask clarifying questions about user requirements
-        2. Understand technical and business constraints
-        3. Identify key stakeholders and use cases
-        4. Explore non-functional requirements (scalability, security, performance)
-        
-        When introducing yourself, say: "Hello! I'm Ada Chen, Senior Solution Architect. I'll be working with you today to gather requirements and understand your vision for this project. My goal is to ask the right questions so we can design a solution that perfectly fits your needs."
-        
-        CRITICAL RULE: Ask ONLY ONE question at a time. 
-        Wait for the user's answer before asking the next question.
-        Keep questions simple and focused on one topic.
-        Never ask multiple questions in a single response.
-        
-        Be professional, friendly, and thorough in your approach."""
-        
         self.chat_session = self.model.start_chat(history=[])
         return self.chat_session
-    
+
     def chat(self, message: str) -> str:
-        """
-        Send a message in the chat session.
-        
-        Args:
-            message: User message
-            
-        Returns:
-            AI response
-        """
+        """Send a message in the chat session."""
         if not self.chat_session:
             self.start_chat_session()
-        
-        response = self.chat_session.send_message(message)
-        return response.text
-    
+        return self.chat_session.send_message(message).text
+
     def generate_architecture(
         self,
         requirements: List[UserRequirement],
         supporting_docs: Optional[List[SupportingDocument]] = None,
         chat_history: Optional[str] = None
     ) -> str:
-        """
-        Generate solution architecture based on requirements and documents.
-        
-        Args:
-            requirements: List of user requirements
-            supporting_docs: Optional supporting documents
-            chat_history: Optional chat history from requirements gathering
-            
-        Returns:
-            Generated architecture as markdown text
-        """
-        # Build the prompt
+        """Generate solution architecture based on requirements and documents."""
         prompt = self._build_architecture_prompt(requirements, supporting_docs, chat_history)
-        
-        # Generate architecture
-        response = self.model.generate_content(prompt)
-        
-        return response.text
-    
+        return self.model.generate_content(prompt).text
+
     def _build_architecture_prompt(
         self,
         requirements: List[UserRequirement],
@@ -108,49 +69,45 @@ class ArchitectureGenerator:
         chat_history: Optional[str]
     ) -> str:
         """Build a comprehensive prompt for architecture generation."""
-        
+
         prompt_parts = [
             "# Task: Generate a Comprehensive Solution Architecture",
             "",
             "You are an expert solution architect. Based on the provided requirements and supporting documents, "
             "design a complete solution architecture with detailed reasoning for each decision.",
             "",
-            "## Requirements:",
         ]
-        
+
         # Add requirements
-        for i, req in enumerate(requirements, 1):
-            priority = f" [{req.priority}]" if req.priority else ""
-            category = f" ({req.category})" if req.category else ""
-            prompt_parts.append(f"{i}. {req.requirement}{priority}{category}")
-        
-        # Add supporting documents
-        if supporting_docs:
+        prompt_parts.extend(["## Requirements:", ""])
+        if requirements:
+            for i, req in enumerate(requirements, 1):
+                priority = f" [{req.priority}]" if req.priority else ""
+                category = f" ({req.category})" if req.category else ""
+                prompt_parts.append(f"{i}. {req.requirement}{priority}{category}")
+        else:
             prompt_parts.extend([
-                "",
-                "## Supporting Documents:",
+                "No explicit requirements provided. Please extract and infer requirements from the chat history and supporting documents below.",
                 ""
             ])
+
+        # Add supporting documents
+        if supporting_docs:
+            prompt_parts.extend(["", "## Supporting Documents:", ""])
             for doc in supporting_docs:
+                content = doc.content[:2000] + ("..." if len(doc.content) > 2000 else "")
                 prompt_parts.extend([
                     f"### {doc.filename} ({doc.document_type})",
-                    f"```",
-                    doc.content[:2000] + ("..." if len(doc.content) > 2000 else ""),
-                    f"```",
-                    ""
+                    "```", content, "```", ""
                 ])
-        
+
         # Add chat history
         if chat_history:
             prompt_parts.extend([
-                "",
-                "## Requirements Gathering Discussion:",
-                f"```",
-                chat_history,
-                f"```",
-                ""
+                "", "## Requirements Gathering Discussion:",
+                "```", chat_history, "```", ""
             ])
-        
+
         # Add architecture generation instructions
         prompt_parts.extend([
             "",
@@ -239,7 +196,7 @@ class ArchitectureGenerator:
             "2. On the next line, start the code block with: ```mermaid",
             "3. On the next line, specify ONLY one of these diagram types:",
             "   - graph TD",
-            "   - graph LR", 
+            "   - graph LR",
             "   - flowchart TD",
             "   - flowchart LR",
             "   - sequenceDiagram",
@@ -286,40 +243,25 @@ class ArchitectureGenerator:
             "- Provide detailed reasoning for EVERY major decision",
             "- Be specific about technologies and explain WHY each choice was made"
         ])
-        
+
         return "\n".join(prompt_parts)
-    
+
     def export_architecture(self, architecture_text: str, output_file: str):
-        """
-        Export the generated architecture to a file with Mermaid diagrams.
-        
-        Args:
-            architecture_text: Generated architecture text
-            output_file: Output file path
-        """
-        # Enhance the markdown with Mermaid instructions
+        """Export the generated architecture to a file with Mermaid diagrams."""
         enhanced_text = self._add_mermaid_instructions(architecture_text)
         
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(enhanced_text)
-        
+
         console.print(f"[green]✓[/green] Architecture exported to: {output_file}")
         console.print("\n[cyan]📊 Viewing Mermaid Diagrams:[/cyan]")
         console.print("  • GitHub/GitLab: Diagrams render automatically")
         console.print("  • VS Code: Install 'Markdown Preview Mermaid Support' extension")
         console.print("  • Online: https://mermaid.live (paste your Mermaid code)")
         console.print("  • Export images: Use Mermaid CLI or online tools")
-    
+
     def _add_mermaid_instructions(self, architecture_text: str) -> str:
-        """
-        Add instructions for viewing Mermaid diagrams at the beginning of the file.
-        
-        Args:
-            architecture_text: Original architecture text
-            
-        Returns:
-            Enhanced text with viewing instructions
-        """
+        """Add viewing instructions at the beginning of the architecture document."""
         instructions = """# Solution Architecture Document
 
 > **📊 Viewing Diagrams**: This document contains Mermaid diagrams that render in:
