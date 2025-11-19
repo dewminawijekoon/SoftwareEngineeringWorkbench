@@ -92,12 +92,7 @@ st.markdown("""
 
 # Header
 st.title("Solution Architecture Generator")
-st.markdown("""
-<div style="background-color: #e3f2fd; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-    <strong>📋 Workflow:</strong> 
-    <span style="color: #1976d2;">1. Chat → 2. Documents → 3. Summary (Optional Requirements) → 4. Generate Architecture</span>
-</div>
-""", unsafe_allow_html=True)
+
 
 # Sidebar Navigation
 with st.sidebar:
@@ -142,7 +137,6 @@ active_tab = st.session_state.active_tab
 
 # Tab 0: Chat Interface
 if active_tab == 0:
-    st.header("Requirements Gathering Chat")
     st.markdown("Chat with AI to define your project requirements")
 
     # Auto-start chat on first load
@@ -174,9 +168,8 @@ if active_tab == 0:
             # Check if user manually wants to finish
             if user_input.lower() == 'done':
                 st.session_state.chat_completed = True
-                st.session_state.active_tab = 1
                 st.balloons()
-                st.success("Chat completed! Moving to Documents...")
+                st.success("Chat completed! You can now proceed to Documents or generate architecture.")
                 st.rerun()
 
             # Add user message
@@ -190,8 +183,20 @@ if active_tab == 0:
                 # Ask AI to respond and indicate if done
                 enhanced_prompt = f"""{user_input}
 
-After your response, if you have gathered enough information to create a comprehensive architecture (project type, key requirements, technical constraints, and main features are clear), end your message with the exact phrase: [REQUIREMENTS_COMPLETE]
-Otherwise, continue asking clarifying questions."""
+After your response, evaluate if you have gathered enough information to create a comprehensive architecture. You should have clear understanding of:
+- Project type and purpose
+- Key functional requirements
+- Technical constraints and preferences
+- Main features and capabilities
+- Non-functional requirements (scalability, security, performance)
+
+If you have gathered sufficient information:
+1. Provide a brief summary of what you've learned (3-5 bullet points covering: project type, key features, technical stack preferences, and any constraints)
+2. Thank the user for the information
+3. Inform them that the requirements gathering is complete and they'll now move to the document upload section
+4. End your message with the exact phrase: [REQUIREMENTS_COMPLETE]
+
+If you need more information, continue asking clarifying questions (ONE question at a time)."""
 
                 ai_response = st.session_state.generator.chat(enhanced_prompt)
 
@@ -209,31 +214,24 @@ Otherwise, continue asking clarifying questions."""
 
                     st.balloons()
                     st.success(
-                        "Requirements gathering complete! Moving to Documents...")
-                    st.session_state.active_tab = 1
+                        "Requirements gathering complete! You can now proceed to Documents or generate architecture.")
                     st.rerun()
                 else:
                     st.session_state.chat_history.append({
                         "role": "assistant",
                         "content": ai_response
                     })
-
                     st.rerun()
     else:
-        st.info("Chat completed! Next step: Upload Documents")
-        st.markdown("### Quick Navigation")
+        st.success("✅ Chat completed! Next step: Upload Documents")
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("📄 Go to Documents", use_container_width=True, type="primary"):
+            if st.button("Go to Documents", use_container_width=True, type="primary"):
                 st.session_state.active_tab = 1
                 st.rerun()
         with col2:
-            if st.button("📋 View Summary", use_container_width=True):
+            if st.button("View Summary", use_container_width=True):
                 st.session_state.active_tab = 2
-                st.rerun()
-        with col3:
-            if st.button("🏗 Generate Architecture", use_container_width=True):
-                st.session_state.active_tab = 3
                 st.rerun()
 
 # Tab 1: Documents Upload
@@ -248,35 +246,7 @@ elif active_tab == 1:
     # Show summary of what will be sent to AI
     if st.session_state.supporting_docs:
         st.success(
-            f"✅ {len(st.session_state.supporting_docs)} document(s) uploaded and ready to be sent to the AI agent")
-
-        # Summary card showing what will be passed to AI
-        with st.container():
-            st.markdown("#### 📊 Data Summary - What the AI Agent Will Receive")
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                total_chars = sum(len(doc.content)
-                                  for doc in st.session_state.supporting_docs)
-                st.metric("Total Content", f"{total_chars:,} chars")
-
-            with col2:
-                total_words = sum(len(doc.content.split())
-                                  for doc in st.session_state.supporting_docs)
-                st.metric("Approx. Words", f"{total_words:,}")
-
-            with col3:
-                doc_types = set(
-                    doc.document_type for doc in st.session_state.supporting_docs)
-                st.metric("Document Types", len(doc_types))
-
-            # Show list of files
-            st.markdown("**Files included:**")
-            for doc in st.session_state.supporting_docs:
-                st.markdown(f"- 📄 `{doc.filename}` ({doc.document_type})")
-    else:
-        st.info(
-            "ℹ️ No documents uploaded yet. Documents are optional but can improve architecture quality.")
+            f"✅ {len(st.session_state.supporting_docs)} document(s) uploaded and ready")
 
     uploaded_files = st.file_uploader(
         "Choose files",
@@ -295,10 +265,11 @@ elif active_tab == 1:
             for i, uploaded_file in enumerate(uploaded_files):
                 status_text.text(f"Processing {uploaded_file.name}...")
 
-                # Save to temp file
-                with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
+                # Save to temp file with original filename
+                temp_dir = tempfile.gettempdir()
+                tmp_path = os.path.join(temp_dir, uploaded_file.name)
+                with open(tmp_path, 'wb') as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
-                    tmp_path = tmp_file.name
 
                 try:
                     doc = doc_processor.process_document(tmp_path)
@@ -325,53 +296,24 @@ elif active_tab == 1:
                 "Documents ready! You can now generate the architecture.")
             st.rerun()
 
-    # Display processed documents with enhanced viewing
+    # Display processed documents - clean summary view
     if st.session_state.supporting_docs:
         st.markdown("---")
-        st.markdown("### 📑 Uploaded Documents - Content Sent to AI Agent")
-        st.markdown(
-            "Below are the documents and their complete content that will be analyzed by the AI:")
+        st.markdown("### 📑 Uploaded Documents")
 
+        # Summary table
         for idx, doc in enumerate(st.session_state.supporting_docs, 1):
-            with st.expander(f"📄 {idx}. {doc.filename} ({doc.document_type})", expanded=False):
-                # Document metadata
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("File", doc.filename)
-                with col2:
-                    st.metric("Type", doc.document_type.replace(
-                        '_', ' ').title())
-                with col3:
-                    st.metric("Size", f"{len(doc.content):,} chars")
-
-                st.markdown("---")
-
-                # Show full content in tabs
-                tab1, tab2 = st.tabs(["📝 Full Content", "🔍 Preview"])
-
-                with tab1:
-                    st.markdown(
-                        "**Complete content that will be sent to the AI agent:**")
-                    # Show full content in a scrollable text area
-                    st.text_area(
-                        "Full Document Content",
-                        value=doc.content,
-                        height=400,
-                        disabled=True,
-                        label_visibility="collapsed"
-                    )
-                    st.caption(
-                        f"Total: {len(doc.content):,} characters | {len(doc.content.split())} words approximately")
-
-                with tab2:
-                    st.markdown("**First 1000 characters preview:**")
-                    preview_text = doc.content[:1000]
-                    if len(doc.content) > 1000:
-                        preview_text += "\n\n... (content truncated for preview)"
-                    st.markdown(f"```\n{preview_text}\n```")
-
-                # Option to remove document
-                if st.button(f"🗑️ Remove {doc.filename}", key=f"remove_doc_{idx}"):
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+            
+            with col1:
+                st.markdown(f"**{idx}. {doc.filename}**")
+            with col2:
+                st.markdown(f"*{doc.document_type.replace('_', ' ').title()}*")
+            with col3:
+                word_count = len(doc.content.split())
+                st.markdown(f"~{word_count:,} words")
+            with col4:
+                if st.button("🗑️", key=f"remove_doc_{idx}", help=f"Remove {doc.filename}"):
                     st.session_state.supporting_docs = [
                         d for d in st.session_state.supporting_docs if d.filename != doc.filename
                     ]
@@ -399,24 +341,36 @@ elif active_tab == 2:
     st.markdown(
         "Review the information gathered from chat and documents. Add or modify requirements as needed.")
 
-    if not st.session_state.chat_completed:
+    # Check if we have either chat OR documents (at least one is required)
+    has_chat = st.session_state.chat_completed and len(st.session_state.chat_history) > 0
+    has_docs = len(st.session_state.supporting_docs) > 0
+    
+    if not has_chat and not has_docs:
         st.warning(
-            "⚠️ Please complete the chat first before viewing the summary.")
-        if st.button("Go to Chat", type="primary"):
-            st.session_state.active_tab = 0
-            st.rerun()
+            "⚠️ Please complete the chat OR upload documents before viewing the summary.")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Go to Chat", type="primary", use_container_width=True):
+                st.session_state.active_tab = 0
+                st.rerun()
+        with col2:
+            if st.button("Go to Documents", type="primary", use_container_width=True):
+                st.session_state.active_tab = 1
+                st.rerun()
     else:
-        # Display conversation summary
-        st.subheader("📝 Chat Conversation Summary")
+        # Display conversation summary (if available)
+        if has_chat:
+            st.subheader("📝 Chat Conversation Summary")
+            with st.expander("View Full Conversation", expanded=False):
+                for msg in st.session_state.chat_history:
+                    role = "**You:**" if msg["role"] == "user" else "**AI:**"
+                    st.markdown(f"{role} {msg['content']}")
+                    st.markdown("---")
+        else:
+            st.info("ℹ️ No chat conversation - Requirements will be extracted from documents only")
 
-        with st.expander("View Full Conversation", expanded=False):
-            for msg in st.session_state.chat_history:
-                role = "**You:**" if msg["role"] == "user" else "**AI:**"
-                st.markdown(f"{role} {msg['content']}")
-                st.markdown("---")
-
-        # Display documents summary
-        if st.session_state.supporting_docs:
+        # Display documents summary (if available)
+        if has_docs:
             st.subheader("📄 Supporting Documents")
             st.info(
                 f"{len(st.session_state.supporting_docs)} document(s) uploaded")
@@ -426,8 +380,12 @@ elif active_tab == 2:
                     st.markdown(f"**{doc.filename}** ({doc.document_type})")
                     st.caption(f"Size: {len(doc.content):,} characters")
                     st.markdown("---")
+        else:
+            st.info("ℹ️ No documents uploaded - Requirements will be extracted from chat only")
 
-        st.markdown("---")
+        
+        # Show what data sources are available for extraction
+        st.success(f"✅ Ready to extract requirements from: {'Chat' if has_chat else ''}{' + ' if has_chat and has_docs else ''}{'Documents' if has_docs else ''}")
 
         # Auto-extract requirements button
         if len(st.session_state.requirements) == 0:
@@ -437,72 +395,57 @@ elif active_tab == 2:
 
             if st.button("Auto-Extract Requirements from Chat & Documents", type="primary", use_container_width=True):
                 with st.spinner("Analyzing conversation and documents to extract requirements..."):
-                    # Build chat history text
-                    chat_text = "\n".join([
-                        f"{'User' if m['role'] == 'user' else 'AI'}: {m['content']}"
-                        for m in st.session_state.chat_history
-                    ])
-
-                    # Build documents context
-                    docs_text = ""
-                    if st.session_state.supporting_docs:
-                        docs_text = "\n\nSupporting Documents:\n"
-                        for doc in st.session_state.supporting_docs:
-                            docs_text += f"\n--- {doc.filename} ---\n{doc.content[:2000]}\n"
-
-                    # Ask AI to extract requirements
-                    extraction_prompt = f"""Based on this conversation and supporting documents, extract structured requirements.
-                    For each requirement, provide:
-                    - requirement: clear statement
-                    - priority: High/Medium/Low (infer from context)
-                    - category: Functional/Non-functional/Technical/Business
+                    # Verify we have data to extract from
+                    has_chat = len(st.session_state.chat_history) > 0
+                    has_docs = len(st.session_state.supporting_docs) > 0
                     
-                    Return ONLY a valid JSON array with this exact format:
-                    [{{"requirement": "...", "priority": "High", "category": "Functional"}}]
+                    if not has_chat and not has_docs:
+                        st.error("❌ No data available. Please complete the chat or upload documents first.")
+                        st.stop()
                     
-                    Conversation:
-                    {chat_text}
+                    # Show what we're analyzing
+                    st.info(f"📊 Analyzing: {len(st.session_state.chat_history)} chat messages + {len(st.session_state.supporting_docs)} document(s)")
                     
-                    {docs_text}
-                    """
-
-                    response = st.session_state.generator.chat(
-                        extraction_prompt)
-
-                    # Try to parse JSON
-                    import json
-
                     try:
-                        # Extract JSON array from response
-                        json_match = re.search(r'\[.*\]', response, re.DOTALL)
-                        if json_match:
-                            requirements_data = json.loads(json_match.group())
-
-                            for req_data in requirements_data:
-                                st.session_state.requirements.append(
-                                    UserRequirement(
-                                        requirement=req_data.get(
-                                            'requirement', ''),
-                                        priority=req_data.get(
-                                            'priority', 'Medium'),
-                                        category=req_data.get(
-                                            'category', 'Functional')
-                                    )
-                                )
-
-                            st.success(
-                                f"Extracted {len(requirements_data)} requirements!")
+                        # Use the generator's extract_requirements method
+                        extracted_requirements = st.session_state.generator.extract_requirements(
+                            chat_history=st.session_state.chat_history,
+                            supporting_docs=st.session_state.supporting_docs if has_docs else None
+                        )
+                        
+                        if extracted_requirements and len(extracted_requirements) > 0:
+                            # Add to session state
+                            st.session_state.requirements.extend(extracted_requirements)
+                            
+                            st.success(f"✅ Extracted {len(extracted_requirements)} requirements!")
                             st.balloons()
                             st.rerun()
                         else:
-                            st.error(
-                                "Could not extract requirements. Please add them manually below.")
+                            st.warning("⚠️ No requirements could be extracted. Please add them manually below.")
+                            
                     except Exception as e:
-                        st.error(f"Error parsing requirements: {e}")
+                        st.error(f"❌ Error extracting requirements: {str(e)}")
+                        st.info("💡 Please try adding requirements manually below.")
 
         # Display extracted requirements
         if st.session_state.requirements:
             st.markdown("### ✅ Extracted Requirements")
+            
+            # Requirements quality metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Requirements", len(st.session_state.requirements))
+            with col2:
+                high_count = sum(1 for r in st.session_state.requirements if r.priority == "High")
+                st.metric("High Priority", high_count)
+            with col3:
+                functional_count = sum(1 for r in st.session_state.requirements if r.category in ["Functional", "Business"])
+                st.metric("Functional", functional_count)
+            with col4:
+                nonfunctional_count = sum(1 for r in st.session_state.requirements if r.category in ["Non-functional", "Technical", "Security"])
+                st.metric("Non-Functional", nonfunctional_count)
+            
+            st.markdown("---")
 
             for i, req in enumerate(st.session_state.requirements, 1):
                 priority_badge = {
@@ -613,11 +556,11 @@ elif active_tab == 3:
         st.success(" | ".join(status_parts))
 
         # Show comprehensive summary of what will be sent to AI
-        with st.expander("🔍 View Complete Data Being Sent to AI Agent", expanded=False):
+        with st.expander("🔍 View Data Being Sent to AI Agent", expanded=False):
             st.markdown("### 📋 Input Data Summary")
 
             # Requirements section
-            if st.session_state.requirements:
+            if st.session_state.requirements and len(st.session_state.requirements) > 0:
                 st.markdown(
                     f"#### Requirements ({len(st.session_state.requirements)})")
                 for i, req in enumerate(st.session_state.requirements, 1):
@@ -628,39 +571,7 @@ elif active_tab == 3:
                         f"   *Priority: {req.priority or 'N/A'} | Category: {req.category or 'N/A'}*")
             else:
                 st.markdown("#### Requirements")
-                st.info(
-                    "No explicit requirements defined. AI will extract requirements from chat and documents.")
-
-            # Documents section
-            if st.session_state.supporting_docs:
-                st.markdown(
-                    f"#### Supporting Documents ({len(st.session_state.supporting_docs)})")
-                for doc in st.session_state.supporting_docs:
-                    st.markdown(
-                        f"- 📄 **{doc.filename}** ({doc.document_type})")
-                    st.markdown(f"  *Size: {len(doc.content):,} characters*")
-                    with st.expander(f"View content of {doc.filename}"):
-                        st.text_area("Content", value=doc.content, height=300,
-                                     disabled=True, label_visibility="collapsed")
-            else:
-                st.markdown("#### Supporting Documents")
-                st.info("No supporting documents included")
-
-            # Chat history section
-            if st.session_state.chat_history:
-                st.markdown(
-                    f"#### Chat History ({len(st.session_state.chat_history)} messages)")
-                total_chat_chars = sum(len(msg['content'])
-                                       for msg in st.session_state.chat_history)
-                st.info(f"Total chat content: {total_chat_chars:,} characters")
-                with st.expander("View full chat history"):
-                    for msg in st.session_state.chat_history:
-                        role_label = "👤 You" if msg['role'] == 'user' else "🤖 AI"
-                        st.markdown(f"**{role_label}:** {msg['content']}")
-                        st.markdown("---")
-            else:
-                st.markdown("#### Chat History")
-                st.info("No chat history available")
+                st.info("No requirements defined")
 
     # Generation button
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -680,35 +591,74 @@ elif active_tab == 3:
                         for m in st.session_state.chat_history
                     ])
 
-                # Generate architecture
-                try:
-                    # Pass requirements or empty list
-                    reqs_to_pass = st.session_state.requirements if st.session_state.requirements else []
+                # Generate architecture using multi-stage approach
+                # Pass requirements or empty list
+                reqs_to_pass = st.session_state.requirements if st.session_state.requirements else []
 
-                    architecture = st.session_state.generator.generate_architecture(
-                        requirements=reqs_to_pass,
-                        supporting_docs=st.session_state.supporting_docs if st.session_state.supporting_docs else None,
-                        chat_history=chat_history_text
-                    )
+                architecture = st.session_state.generator.generate_architecture_multistage(
+                    requirements=reqs_to_pass,
+                    supporting_docs=st.session_state.supporting_docs if st.session_state.supporting_docs else None,
+                    chat_history=chat_history_text
+                )
 
-                    st.session_state.architecture = architecture
-                    st.success("Architecture generated successfully!")
-                    st.balloons()
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"Error generating architecture: {e}")
+                st.session_state.architecture = architecture
+                st.success("✅ Complete architecture generated successfully using multi-stage approach!")
+                st.info("ℹ️ This architecture was generated in 3 stages to ensure all 10 sections are complete.")
+                st.balloons()
+                st.rerun()
 
     # Display generated architecture
     if st.session_state.architecture:
         st.markdown("---")
-        st.markdown("### Generated Architecture")
+        st.markdown("### 🎉 Generated Architecture")
+        
+        # Architecture quality metrics
+        st.markdown("#### 📊 Architecture Quality Analysis")
+        
+        arch_content = st.session_state.architecture
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            # Count major sections
+            sections = len(re.findall(r'^#{1,3}\s+', arch_content, re.MULTILINE))
+            st.metric("Sections", sections)
+        with col2:
+            # Count mermaid diagrams
+            diagrams = len(re.findall(r'```mermaid', arch_content))
+            st.metric("Diagrams", diagrams)
+        with col3:
+            # Count total words
+            total_words = len(arch_content.split())
+            st.metric("Total Words", f"{total_words:,}")
+        with col4:
+            # Validate all 10 REQUIRED sections are present
+            required_sections = [
+                'Executive Summary', 
+                'Architecture Diagram', 
+                'Architecture Pattern', 
+                'System Component', 
+                'Technology Stack',
+                'Data Architecture',
+                'Non-Functional',
+                'Deployment',
+                'Integration',
+                'Trade-off'
+            ]
+            found_sections = sum(1 for section in required_sections if section.lower() in arch_content.lower())
+            completeness = int((found_sections / len(required_sections)) * 100)
+            st.metric("Completeness", f"{found_sections}/10 sections")
+            
+            # Show missing sections warning if any
+            if found_sections < 10:
+                st.warning(f"⚠️ Missing {10 - found_sections} required section(s). All 10 sections should be present.")
+
+        st.markdown("---")
 
         # Download button
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.download_button(
-                label="Download as Markdown",
+                label="📥 Download as Markdown",
                 data=st.session_state.architecture,
                 file_name="solution_architecture.md",
                 mime="text/markdown",
@@ -728,8 +678,7 @@ elif active_tab == 3:
                 if part.strip():
                     st.markdown(part)
             else:
-                # Mermaid diagram
-                st.code(part, language='mermaid')
+                # Mermaid diagram - render directly without showing code
                 try:
                     import streamlit.components.v1 as components
                     mermaid_html = f"""
